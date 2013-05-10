@@ -1,4 +1,4 @@
-# encoding: UTF-8  
+# encoding: UTF-8
 # Redmine - project management software
 # Copyright (C) 2006-2012  Jean-Philippe Lang
 #
@@ -21,6 +21,7 @@ desc 'Mantis migration script'
 require 'active_record'
 require 'iconv'
 require 'pp'
+require 'debugger'
 
 namespace :redmine do
 task :migrate_from_mantis => :environment do
@@ -127,7 +128,7 @@ task :migrate_from_mantis => :environment do
       #                70 => manager_role, # manager
       #                90 => manager_role # administrator
       #                }
-      
+
       reporter_role = Role.find_by_position(6)
       developer_role = Role.find_by_position(5)
       analista_role = Role.find_by_position(4)
@@ -161,14 +162,14 @@ task :migrate_from_mantis => :environment do
                                4 => IssueRelation::TYPE_DUPLICATES  # has duplicate
                                }
 
-		FIELD_NAME_MAPPING = {"Data Início Prevista" => attr, 		#attributes
-					"Data Término Prevista" => attr,		#attributes
-					"project_id" => attr,			#attributes
-					"status" => attr,				#attributes
-					"category" => attr,				#attributes
-					"handler_id" => attr,			#attributes
-					"severity" => attr,				#attributes
-					"fixed_in_version" => attr			#attributes
+		FIELD_NAME_MAPPING = {"Data Início Prevista" => 'attr', 		#attributes
+					"Data Término Prevista" => 'attr',		#attributes
+					"project_id" => 'attr',			#attributes
+					"status" => 'attr',				#attributes
+					"category" => 'attr',				#attributes
+					"handler_id" => 'attr',			#attributes
+					"severity" => 'attr',				#attributes
+					"fixed_in_version" => 'attr'			#attributes
 					}
 
 		ATTRIBUTES_MAPPING = {"Data Início Prevista" => "due_date", 	#due date
@@ -286,20 +287,10 @@ task :migrate_from_mantis => :environment do
 
     class MantisBugHistory < ActiveRecord::Base
       set_table_name :m_bug_history_t
-      set_inheritance_column :none  
+      set_inheritance_column :none
       belongs_to :bug, :class_name => "MantisBug", :foreign_key => :bug_id
 
-		def field_name
-	  		read_attribute(:name)[0..29]
-		end
-
-        def old_value
-            read_attribute(:name)[0..29]
-        end
-
-        def new_value
-            read_attribute(:name)[0..29]
-        end
+      attr_accessible :name, :old_value, :new_value
     end
 
 
@@ -364,12 +355,12 @@ task :migrate_from_mantis => :environment do
     end
 
     def self.mantis_date_convert(time_stamp)
-      DateTime.strptime(time_stamp.to_s, "%s")
+      DateTime.strptime(time_stamp.to_s, "%s") unless time_stamp.to_s.empty?
     end
 
 
     def self.migrate
-      
+
       # Users
       print "Migrating users"
       User.delete_all "login <> 'admin'"
@@ -459,7 +450,7 @@ task :migrate_from_mantis => :environment do
       print "Migrating bugs"
       Issue.destroy_all
       issues_map = {}
- 	  journals_map = {}
+      journals_map = {}
       #keep_bug_ids = (Issue.count == 1)
 
       MantisBug.find_each(:batch_size => 200) do |bug|
@@ -510,21 +501,21 @@ task :migrate_from_mantis => :environment do
         end
         end
 
-  		#Bug history
-          bug.bug_history.each do |history|
-		    begin
-           next unless journal_map[history.bug_id] && users_map[history.user_id]
-            jd = JournalDetail.new :journal_id => journal_map(history.bug_id),
-										:user_id => User.find_by_id(users_map[history.user_id]),
-            							:property => ATTRIBUTES_MAPPING[history.field_name],
-            							:prop_key => FIELD_NAME_MAPPING[history.field_name],
-            							:old_value => ((history.field_name == "Data Início Prevista" || history.field_name == "Data Término Prevista") ? mantis_date_convert(history.old_value) : history.old_value),
-            							:value => ((history.field_name == "Data Início Prevista" || history.field_name == "Data Término Prevista") ? mantis_date_convert(history.new_value) : history.new_value)
-			jd.save
-			rescue
-		print "history error"
-		print jd.id
-		end
+        #Bug history
+        bug.bug_history.each do |history|
+          begin
+            next unless journals_map[history.bug_id] && users_map[history.user_id] && (not history.field_name.empty?) and FIELD_NAME_MAPPING[history.field_name] and ATTRIBUTES_MAPPING[history.field_name]
+            jd = JournalDetail.new :journal_id => journals_map[history.bug_id],
+              :property => ATTRIBUTES_MAPPING[history.field_name],
+              :prop_key => FIELD_NAME_MAPPING[history.field_name],
+              :old_value => ((history.field_name == "Data Início Prevista" || history.field_name == "Data Término Prevista") ? mantis_date_convert(history.old_value) : history.old_value),
+              :value => ((history.field_name == "Data Início Prevista" || history.field_name == "Data Término Prevista") ? mantis_date_convert(history.new_value) : history.new_value)
+            jd.save
+          rescue Exception => e
+            debugger
+            print "history error"
+            print jd.id
+          end
         end
 
         # Bug files
