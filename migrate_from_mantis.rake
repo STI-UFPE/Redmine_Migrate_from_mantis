@@ -485,36 +485,50 @@ task :migrate_from_mantis => :environment do
         end
 
         # Bug notes
-        bug.bug_notes.each do |note|
-          begin
-          next unless users_map[note.reporter_id]
-          n = Journal.new :notes => encode(note.bug_note_text.note),
-                          :created_on => mantis_date_convert(note.date_submitted)
-          n.user = User.find_by_id(users_map[note.reporter_id])
-          n.journalized = i
-		  n.private_notes = (note.view_state == 50 ? 1 : 0)
-          n.save
-	  	  journals_map[note.id] = n.id
-          rescue
-        print 'note error'
-        print note.id
-        end
-        end
+        #bug.bug_notes.each do |note|
+          #begin
+            #next unless users_map[note.reporter_id]
+            #n = Journal.new :notes => encode(note.bug_note_text.note),
+              #:created_on => mantis_date_convert(note.date_submitted)
+            #n.user = User.find_by_id(users_map[note.reporter_id])
+            #n.journalized = i
+            #n.private_notes = (note.view_state == 50 ? 1 : 0)
+            #n.save
+          #rescue
+            #print 'note error'
+            #print note.id
+          #end
+        #end
 
         #Bug history
         bug.bug_history.each do |history|
           begin
-            next unless journals_map[history.bug_id] && users_map[history.user_id] && (not history.field_name.empty?) and FIELD_NAME_MAPPING[history.field_name] and ATTRIBUTES_MAPPING[history.field_name]
-            jd = JournalDetail.new :journal_id => journals_map[history.bug_id],
-              :property => ATTRIBUTES_MAPPING[history.field_name],
-              :prop_key => FIELD_NAME_MAPPING[history.field_name],
-              :old_value => ((history.field_name == "Data Início Prevista" || history.field_name == "Data Término Prevista") ? mantis_date_convert(history.old_value) : history.old_value),
-              :value => ((history.field_name == "Data Início Prevista" || history.field_name == "Data Término Prevista") ? mantis_date_convert(history.new_value) : history.new_value)
-            jd.save
+            next unless users_map[history.user_id]
+            n = Journal.new :created_on => mantis_date_convert(history.date_modified)
+            n.user = User.find_by_id(users_map[history.user_id])
+            n.journalized = i
+
+            if history.type == 0 and FIELD_NAME_MAPPING[history.field_name] and ATTRIBUTES_MAPPING[history.field_name]
+              n.notes = ""
+              n.save!
+              jd = JournalDetail.new :journal_id => n.id,
+                                     :property => ATTRIBUTES_MAPPING[history.field_name],
+                                     :prop_key => FIELD_NAME_MAPPING[history.field_name],
+                                     :old_value => ((history.field_name == "Data Início Prevista" or history.field_name == "Data Término Prevista") ? mantis_date_convert(history.old_value) : history.old_value),
+                                     :value => ((history.field_name == "Data Início Prevista" or history.field_name == "Data Término Prevista") ? mantis_date_convert(history.new_value) : history.new_value)
+              jd.save
+            elsif history.type == 2
+              bug_note = MantisBugNote.find_by_id(history.old_value)
+              if bug_note
+                n.notes = encode(bug_note.bug_note_text.note)
+                n.private_notes = (bug_note.view_state == 50 ? 1 : 0)
+                n.save!
+              end
+            end
           rescue Exception => e
             debugger
             print "history error"
-            print jd.id
+            print history.id
           end
         end
 
