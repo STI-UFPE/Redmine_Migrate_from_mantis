@@ -358,6 +358,14 @@ task :migrate_from_mantis => :environment do
       DateTime.strptime(time_stamp.to_s, "%s") unless time_stamp.to_s.empty?
     end
 
+    def self.save_journal_detail(n, jd)
+      if jd.valid?
+        n.save!
+        jd.journal_id = n.id
+        jd.save
+      end
+    end
+
 
     def self.migrate
 
@@ -510,13 +518,26 @@ task :migrate_from_mantis => :environment do
 
             if history.type == 0 and FIELD_NAME_MAPPING[history.field_name] and ATTRIBUTES_MAPPING[history.field_name]
               n.notes = ""
-              n.save!
-              jd = JournalDetail.new :journal_id => n.id,
-                                     :property => ATTRIBUTES_MAPPING[history.field_name],
-                                     :prop_key => FIELD_NAME_MAPPING[history.field_name],
-                                     :old_value => ((history.field_name == "Data Início Prevista" or history.field_name == "Data Término Prevista") ? mantis_date_convert(history.old_value) : history.old_value),
-                                     :value => ((history.field_name == "Data Início Prevista" or history.field_name == "Data Término Prevista") ? mantis_date_convert(history.new_value) : history.new_value)
-              jd.save
+              #n.save!
+              jd = JournalDetail.new :prop_key => ATTRIBUTES_MAPPING[history.field_name],
+                                     :property => FIELD_NAME_MAPPING[history.field_name]
+              if history.field_name == "Data Início Prevista" or history.field_name == "Data Término Prevista"
+                jd.old_value = mantis_date_convert(history.old_value)
+                jd.value = mantis_date_convert(history.new_value)
+                save_journal_detail(n, jd)
+             elsif history.field_name == "status"
+                jd.old_value = STATUS_MAPPING[history.old_value.to_i]
+                jd.value = STATUS_MAPPING[history.new_value.to_i]
+                save_journal_detail(n, jd)
+              elsif history.field_name == "handler_id"
+                jd.old_value = users_map[history.old_value.to_i].to_i
+                jd.value = users_map[history.new_value.to_i].to_i
+                save_journal_detail(n, jd) if ((User.exists? users_map[history.old_value.to_i]) and users_map[history.new_value.to_i])
+              else
+                jd.old_value = history.old_value.gsub('(', '').gsub(')', '')
+                jd.value = history.new_value.gsub('(', '').gsub(')', '')
+                save_journal_detail(n, jd)
+              end
             elsif history.type == 2
               bug_note = MantisBugNote.find_by_id(history.old_value)
               if bug_note
