@@ -518,7 +518,6 @@ task :migrate_from_mantis => :environment do
 
             if history.type == 0 and FIELD_NAME_MAPPING[history.field_name] and ATTRIBUTES_MAPPING[history.field_name]
               n.notes = ""
-              #n.save!
               jd = JournalDetail.new :prop_key => ATTRIBUTES_MAPPING[history.field_name],
                                      :property => FIELD_NAME_MAPPING[history.field_name]
               if history.field_name == "Data Início Prevista" or history.field_name == "Data Término Prevista"
@@ -617,12 +616,13 @@ task :migrate_from_mantis => :environment do
       IssueCustomField.destroy_all
       MantisCustomField.find(:all).each do |field|
         f = IssueCustomField.new :name => field.name[0..29],
-                                 :field_format => CUSTOM_FIELD_TYPE_MAPPING[field.format],
-                                 :min_length => field.length_min,
-                                 :max_length => field.length_max,
-                                 :regexp => field.valid_regexp,
-                                 :possible_values => field.possible_values.split('|'),
-                                 :is_required => field.require_report?
+          :field_format => CUSTOM_FIELD_TYPE_MAPPING[field.format],
+          :min_length => field.length_min,
+          :max_length => field.length_max,
+          :regexp => field.valid_regexp,
+          :possible_values => field.possible_values.split('|'),
+          :is_required => field.require_report?
+        next if (field.field_name == "Data Início Prevista" or field.field_name == "Data Término Prevista")
         next unless f.save
         print '.'
         STDOUT.flush
@@ -638,11 +638,11 @@ task :migrate_from_mantis => :environment do
         # Values
         field.values.each do |value|
           v = CustomValue.new :custom_field_id => f.id,
-                              :value => value.value
+            :value => value.value
 
-	  if IssueCustomField.find(f.id).field_format == CUSTOM_FIELD_TYPE_MAPPING[8]
-	    v.value =  mantis_date_convert(v.value) unless v.value.empty?
-	  end
+          if IssueCustomField.find(f.id).field_format == CUSTOM_FIELD_TYPE_MAPPING[8]
+            v.value =  mantis_date_convert(v.value) unless v.value.empty?
+          end
 
           v.customized = Issue.find_by_id(issues_map[value.bug_id]) if issues_map[value.bug_id]
           v.save
@@ -695,10 +695,10 @@ task :migrate_from_mantis => :environment do
     exit
   end
 
-  puts "WARNING: Your Redmine data will be deleted during this process."
-  print "Are you sure you want to continue ? [y/N] "
-  STDOUT.flush
-  break unless STDIN.gets.match(/^y$/i)
+  #puts "WARNING: Your Redmine data will be deleted during this process."
+  #print "Are you sure you want to continue ? [y/N] "
+  #STDOUT.flush
+  #break unless STDIN.gets.match(/^y$/i)
 
   # Default Mantis database settings
   db_params = {:adapter => 'mysql2',
@@ -707,19 +707,19 @@ task :migrate_from_mantis => :environment do
                :username => 'root',
                :password => '' }
 
-  puts
-  puts "Please enter settings for your Mantis database"
-  [:adapter, :host, :database, :username, :password].each do |param|
-    print "#{param} [#{db_params[param]}]: "
-    value = STDIN.gets.chomp!
-    db_params[param] = value unless value.blank?
-  end
+  #puts
+  #puts "Please enter settings for your Mantis database"
+  #[:adapter, :host, :database, :username, :password].each do |param|
+    #print "#{param} [#{db_params[param]}]: "
+    #value = STDIN.gets.chomp!
+    #db_params[param] = value unless value.blank?
+  #end
 
   while true
     print "encoding [UTF-8]: "
     STDOUT.flush
-    encoding = STDIN.gets.chomp!
-    encoding = 'UTF-8' if encoding.blank?
+    #encoding = STDIN.gets.chomp!
+    encoding = 'UTF-8' #if encoding.blank?
     break if MantisMigrate.encoding encoding
     puts "Invalid encoding!"
   end
