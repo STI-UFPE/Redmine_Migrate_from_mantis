@@ -177,7 +177,7 @@ task :migrate_from_mantis => :environment do
 					"project_id" => "project_id",		#project
 					"status" => "status_id",			#status
 					"category" => "tracker_id",			#tracker
-					"handler_id" => "assingned_id",		#assingned
+					"handler_id" => "assigned_to_id",		#assingned
 					"severity" => "priority_id",			#priority
 					"fixed_in_version" => "fixed_version_id"	#fixed version
 					}
