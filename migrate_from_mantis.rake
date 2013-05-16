@@ -392,7 +392,6 @@ task :migrate_from_mantis => :environment do
       end
       puts
 
-
       # Projects
       print "Migrating projects"
       Project.destroy_all
@@ -404,7 +403,7 @@ task :migrate_from_mantis => :environment do
         p = Project.new :name => encode(project.name),
                         :description => encode(project.description)
         p.identifier = project.identifier
-	p.is_public = 0
+        p.is_public = 0
         next unless p.save
         projects_map[project.id] = p.id
         p.enabled_module_names = ['issue_tracking', 'news', 'wiki']
@@ -462,119 +461,119 @@ task :migrate_from_mantis => :environment do
       #keep_bug_ids = (Issue.count == 1)
 
       MantisBug.find_each(:batch_size => 200) do |bug|
-		begin
-        next unless projects_map[bug.project_id] && users_map[bug.reporter_id]
-        i = Issue.new :project_id => projects_map[bug.project_id],
-                      :subject => encode(bug.summary),
-                      :description => encode(bug.bug_text.full_description),
-                      :priority => PRIORITY_MAPPING[bug.priority] || DEFAULT_PRIORITY,
-                      :created_on => mantis_date_convert(bug.date_submitted),
-                      :updated_on => mantis_date_convert(bug.last_updated),
-                      :start_date => mantis_date_convert(bug.date_submitted)
-                      #:tracker_id => TRACKER_MAPPING[bug.category.name] || DEFAULT_TRACKER
-        i.author = User.find_by_id(users_map[bug.reporter_id])
-        i.fixed_version = Version.find_by_project_id_and_name(i.project_id, bug.fixed_in_version) unless bug.fixed_in_version.blank?
-        i.status = STATUS_MAPPING[bug.status] || DEFAULT_STATUS
-        i.done_ratio = (i.status_id == 5 ? 100 : 0)
-        i.tracker = TRACKER_MAPPING[bug.category.name] || DEFAULT_TRACKER
-        #i.tracker = (bug.severity == 10 ? TRACKER_FEATURE : TRACKER_BUG)
-	i.is_private = (i.tracker == 5 ? 1 : 0)
-        i.id = bug.id # if keep_bug_ids
-        next unless i.save
-        issues_map[bug.id] = i.id
-        print '.'
-        STDOUT.flush
+        begin
+          next unless projects_map[bug.project_id] && users_map[bug.reporter_id]
+          i = Issue.new :project_id => projects_map[bug.project_id],
+            :subject => encode(bug.summary),
+            :description => encode(bug.bug_text.full_description),
+            :priority => PRIORITY_MAPPING[bug.priority] || DEFAULT_PRIORITY,
+            :created_on => mantis_date_convert(bug.date_submitted),
+            :updated_on => mantis_date_convert(bug.last_updated),
+            :start_date => mantis_date_convert(bug.date_submitted)
+          #:tracker_id => TRACKER_MAPPING[bug.category.name] || DEFAULT_TRACKER
+          i.author = User.find_by_id(users_map[bug.reporter_id])
+          i.fixed_version = Version.find_by_project_id_and_name(i.project_id, bug.fixed_in_version) unless bug.fixed_in_version.blank?
+          i.status = STATUS_MAPPING[bug.status] || DEFAULT_STATUS
+          i.done_ratio = (i.status_id == 5 ? 100 : 0)
+          i.tracker = TRACKER_MAPPING[bug.category.name] || DEFAULT_TRACKER
+          #i.tracker = (bug.severity == 10 ? TRACKER_FEATURE : TRACKER_BUG)
+          i.is_private = (i.tracker == 5 ? 1 : 0)
+          i.id = bug.id # if keep_bug_ids
+          next unless i.save
+          issues_map[bug.id] = i.id
+          print '.'
+          STDOUT.flush
 
-        # Assignee
-        # Redmine checks that the assignee is a project member
-        if (bug.handler_id && users_map[bug.handler_id])
-          i.assigned_to = User.find_by_id(users_map[bug.handler_id])
-          i.save(:validate => false)
-        end
-
-        # Bug notes
-        #bug.bug_notes.each do |note|
-          #begin
-            #next unless users_map[note.reporter_id]
-            #n = Journal.new :notes => encode(note.bug_note_text.note),
-              #:created_on => mantis_date_convert(note.date_submitted)
-            #n.user = User.find_by_id(users_map[note.reporter_id])
-            #n.journalized = i
-            #n.private_notes = (note.view_state == 50 ? 1 : 0)
-            #n.save
-          #rescue
-            #print 'note error'
-            #print note.id
-          #end
-        #end
-
-        #Bug history
-        bug.bug_history.each do |history|
-          begin
-            next unless users_map[history.user_id]
-            n = Journal.new :created_on => mantis_date_convert(history.date_modified)
-            n.user = User.find_by_id(users_map[history.user_id])
-            n.journalized = i
-
-            if history.type == 0 and FIELD_NAME_MAPPING[history.field_name] and ATTRIBUTES_MAPPING[history.field_name]
-              n.notes = ""
-              jd = JournalDetail.new :prop_key => ATTRIBUTES_MAPPING[history.field_name],
-                                     :property => FIELD_NAME_MAPPING[history.field_name]
-              if history.field_name == "Data Início Prevista" or history.field_name == "Data Término Prevista"
-                jd.old_value = mantis_date_convert(history.old_value)
-                jd.value = mantis_date_convert(history.new_value)
-                save_journal_detail(n, jd)
-             elsif history.field_name == "status"
-                jd.old_value = STATUS_MAPPING[history.old_value.to_i]
-                jd.value = STATUS_MAPPING[history.new_value.to_i]
-                save_journal_detail(n, jd)
-              elsif history.field_name == "handler_id"
-                jd.old_value = users_map[history.old_value.to_i].to_i
-                jd.value = users_map[history.new_value.to_i].to_i
-                save_journal_detail(n, jd) if ((User.exists? users_map[history.old_value.to_i]) and users_map[history.new_value.to_i])
-              else
-                jd.old_value = history.old_value.gsub('(', '').gsub(')', '')
-                jd.value = history.new_value.gsub('(', '').gsub(')', '')
-                save_journal_detail(n, jd)
-              end
-            elsif history.type == 2
-              bug_note = MantisBugNote.find_by_id(history.old_value)
-              if bug_note
-                n.notes = encode(bug_note.bug_note_text.note)
-                n.private_notes = (bug_note.view_state == 50 ? 1 : 0)
-                n.save!
-              end
-            end
-          rescue Exception => e
-            debugger
-            print "history error"
-            print history.id
+          # Assignee
+          # Redmine checks that the assignee is a project member
+          if (bug.handler_id && users_map[bug.handler_id])
+            i.assigned_to = User.find_by_id(users_map[bug.handler_id])
+            i.save(:validate => false)
           end
-        end
 
-        # Bug files
-        bug.bug_files.each do |file|
-          begin
-          a = Attachment.new :created_on => mantis_date_convert(file.date_added)
-          a.file = file
-          a.author = User.find :first
-          a.container = i
-          a.save
-          rescue
-        print 'file error'
-        print file.id
-        end
-        end
+          # Bug notes
+          #bug.bug_notes.each do |note|
+          #begin
+          #next unless users_map[note.reporter_id]
+          #n = Journal.new :notes => encode(note.bug_note_text.note),
+          #:created_on => mantis_date_convert(note.date_submitted)
+          #n.user = User.find_by_id(users_map[note.reporter_id])
+          #n.journalized = i
+          #n.private_notes = (note.view_state == 50 ? 1 : 0)
+          #n.save
+          #rescue
+          #print 'note error'
+          #print note.id
+          #end
+          #end
 
-        # Bug monitors
-        bug.bug_monitors.each do |monitor|
-          next unless users_map[monitor.user_id]
-          i.add_watcher(User.find_by_id(users_map[monitor.user_id]))
-        end
+          #Bug history
+          bug.bug_history.each do |history|
+            begin
+              next unless users_map[history.user_id]
+              n = Journal.new :created_on => mantis_date_convert(history.date_modified)
+              n.user = User.find_by_id(users_map[history.user_id])
+              n.journalized = i
+
+              if history.type == 0 and FIELD_NAME_MAPPING[history.field_name] and ATTRIBUTES_MAPPING[history.field_name]
+                n.notes = ""
+                jd = JournalDetail.new :prop_key => ATTRIBUTES_MAPPING[history.field_name],
+                  :property => FIELD_NAME_MAPPING[history.field_name]
+                if history.field_name == "Data Início Prevista" or history.field_name == "Data Término Prevista"
+                  jd.old_value = mantis_date_convert(history.old_value)
+                  jd.value = mantis_date_convert(history.new_value)
+                  save_journal_detail(n, jd)
+                elsif history.field_name == "status"
+                  jd.old_value = STATUS_MAPPING[history.old_value.to_i]
+                  jd.value = STATUS_MAPPING[history.new_value.to_i]
+                  save_journal_detail(n, jd)
+                elsif history.field_name == "handler_id"
+                  jd.old_value = users_map[history.old_value.to_i].to_i
+                  jd.value = users_map[history.new_value.to_i].to_i
+                  save_journal_detail(n, jd) if ((User.exists? users_map[history.old_value.to_i]) and users_map[history.new_value.to_i])
+                else
+                  jd.old_value = history.old_value.gsub('(', '').gsub(')', '')
+                  jd.value = history.new_value.gsub('(', '').gsub(')', '')
+                  save_journal_detail(n, jd)
+                end
+              elsif history.type == 2
+                bug_note = MantisBugNote.find_by_id(history.old_value)
+                if bug_note
+                  n.notes = encode(bug_note.bug_note_text.note)
+                  n.private_notes = (bug_note.view_state == 50 ? 1 : 0)
+                  n.save!
+                end
+              end
+            rescue Exception => e
+              debugger
+              print "history error"
+              print history.id
+            end
+          end
+
+          # Bug files
+          bug.bug_files.each do |file|
+            begin
+              a = Attachment.new :created_on => mantis_date_convert(file.date_added)
+              a.file = file
+              a.author = User.find :first
+              a.container = i
+              a.save
+            rescue
+              print 'file error'
+              print file.id
+            end
+          end
+
+          # Bug monitors
+          bug.bug_monitors.each do |monitor|
+            next unless users_map[monitor.user_id]
+            i.add_watcher(User.find_by_id(users_map[monitor.user_id]))
+          end
         rescue
-        print "bug error"
-        print  bug.id
-        print "\n"
+          print "bug error"
+          print  bug.id
+          print "\n"
         end
       end
 
@@ -622,7 +621,7 @@ task :migrate_from_mantis => :environment do
           :regexp => field.valid_regexp,
           :possible_values => field.possible_values.split('|'),
           :is_required => field.require_report?
-        next if (field.field_name == "Data Início Prevista" or field.field_name == "Data Término Prevista")
+        next if (field.name[0..29] == "Data Início Prevista" or field.name[0..29] == "Data Término Prevista")
         next unless f.save
         print '.'
         STDOUT.flush
