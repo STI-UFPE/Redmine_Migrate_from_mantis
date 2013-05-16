@@ -528,9 +528,9 @@ task :migrate_from_mantis => :environment do
                   jd.value = STATUS_MAPPING[history.new_value.to_i]
                   save_journal_detail(n, jd)
                 elsif history.field_name == "handler_id"
-                  jd.old_value = users_map[history.old_value.to_i].to_i
-                  jd.value = users_map[history.new_value.to_i].to_i
-                  save_journal_detail(n, jd) if ((User.exists? users_map[history.old_value.to_i]) and users_map[history.new_value.to_i])
+                  jd.old_value = (User.exists? users_map[history.old_value.to_i]) ? users_map[history.old_value.to_i].to_i : 1
+                  jd.value = (User.exists? users_map[history.new_value.to_i]) ? users_map[history.new_value.to_i].to_i : 1
+                  save_journal_detail(n, jd)
                 else
                   jd.old_value = history.old_value.gsub('(', '').gsub(')', '')
                   jd.value = history.new_value.gsub('(', '').gsub(')', '')
