@@ -474,7 +474,7 @@ task :migrate_from_mantis => :environment do
           i.author = User.find_by_id(users_map[bug.reporter_id])
           i.fixed_version = Version.find_by_project_id_and_name(i.project_id, bug.fixed_in_version) unless bug.fixed_in_version.blank?
           i.status = STATUS_MAPPING[bug.status] || DEFAULT_STATUS
-          i.done_ratio = (i.status_id == 5 ? 100 : 0)
+          i.done_ratio = (i.status_id == 11 ? 100 : 0)
           i.tracker = TRACKER_MAPPING[bug.category.name] || DEFAULT_TRACKER
           #i.tracker = (bug.severity == 10 ? TRACKER_FEATURE : TRACKER_BUG)
           i.is_private = (i.tracker == 5 ? 1 : 0)
@@ -714,15 +714,15 @@ task :migrate_from_mantis => :environment do
     #db_params[param] = value unless value.blank?
   #end
 
-  while true
-    print "encoding [UTF-8]: "
-    STDOUT.flush
-    #encoding = STDIN.gets.chomp!
-    encoding = 'UTF-8' #if encoding.blank?
-    break if MantisMigrate.encoding encoding
-    puts "Invalid encoding!"
-  end
-  puts
+  #while true
+  #  print "encoding [UTF-8]: "
+  #  STDOUT.flush
+  #  #encoding = STDIN.gets.chomp!
+  #  encoding = 'UTF-8' #if encoding.blank?
+  #  break if MantisMigrate.encoding encoding
+  #  puts "Invalid encoding!"
+  # end
+  #puts
 
   # Make sure bugs can refer bugs in other projects
   Setting.cross_project_issue_relations = 1 if Setting.respond_to? 'cross_project_issue_relations'
